@@ -59,6 +59,10 @@ mod tests {
     fn test_multiple_spaces() {
         assert_eq!(capitalize("ciao   mondo"), "Ciao   Mondo");
     }
+    #[test]
+    fn test_nonascii() {
+        assert_eq!(capitalize("ciao ß"), "Ciao SS");
+    }
 }
 
 fn main() {
