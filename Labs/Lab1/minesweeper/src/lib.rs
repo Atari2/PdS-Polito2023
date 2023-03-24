@@ -1,3 +1,5 @@
+use std::string::FromUtf8Error;
+
 fn count_adjacent(i: i64, j: i64, matrix: &[&[u8]]) -> u8 {
     let row_count = (matrix.len() - 1) as i64;
     let col_count = (matrix[i as usize].len() - 1) as i64;
@@ -27,7 +29,7 @@ fn count_adjacent(i: i64, j: i64, matrix: &[&[u8]]) -> u8 {
     count
 }
 
-pub fn annotate2(minefield: String, rows: usize, cols: usize) -> String {
+pub fn annotate2(minefield: String, rows: usize, cols: usize) -> Result<String, FromUtf8Error> {
     let indexes: Vec<(i64, i64)> = vec![
         (1, 1),
         (1, -1),
@@ -64,11 +66,11 @@ pub fn annotate2(minefield: String, rows: usize, cols: usize) -> String {
             bytes[i * cols + j] = b'0' + count;
         }
     }
-    String::from_utf8(bytes).unwrap()
+    String::from_utf8(bytes)
 }
 
 pub fn annotate(minefield: &[&str]) -> Vec<String> {
-    let mut result = Vec::new();
+    let mut result = vec![];
     let bytes_minefield = minefield.iter().map(|s| s.as_bytes()).collect::<Vec<_>>();
     for (i, row) in bytes_minefield.iter().enumerate() {
         let mut current_row = String::new();

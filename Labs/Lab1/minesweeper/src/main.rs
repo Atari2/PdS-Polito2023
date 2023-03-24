@@ -22,11 +22,11 @@ fn transform_board(rows: usize, cols: usize, input_board: &str) -> Vec<&str> {
     board
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     let board = transform_board(args.rows, args.cols, &args.board);
     let result = annotate(&board);
-    let result_single_string = annotate2(args.board, args.rows, args.cols);
+    let result_single_string = annotate2(args.board, args.rows, args.cols)?;
     let transformed_result = transform_board(args.rows, args.cols, &result_single_string);
     println!("***Result with annotate2: ***");
     for row in transformed_result {
@@ -36,4 +36,5 @@ fn main() {
     for row in result {
         println!("{}", row);
     }
+    Ok(())
 }
