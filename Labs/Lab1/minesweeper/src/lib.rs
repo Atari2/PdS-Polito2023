@@ -1,9 +1,7 @@
 use std::string::FromUtf8Error;
 
-fn count_adjacent(i: usize, j: usize, matrix: &[&[u8]]) -> char {
-    let row_count = matrix.len() - 1;
-    let col_count = matrix[i].len() - 1;
-    let indexes = [
+fn calculate_offsets(i: usize, j: usize, rows: usize, cols: usize) -> impl Iterator<Item = (usize, usize)> {
+    let indexes: &'static [(isize, isize); 8] = &[
         (1, 1),
         (1, -1),
         (-1, 1),
@@ -13,17 +11,20 @@ fn count_adjacent(i: usize, j: usize, matrix: &[&[u8]]) -> char {
         (1, 0),
         (-1, 0),
     ];
+    indexes.iter().filter_map(move |(x_off, y_off)| {
+        let (x, y) = (i.checked_add_signed(*x_off), j.checked_add_signed(*y_off));
+        match (x, y) {
+            (Some(x), Some(y)) if x < rows && y < cols => Some((x, y)),
+            _ => None,
+        }
+    })
+}
+
+fn count_adjacent(i: usize, j: usize, matrix: &[&[u8]]) -> char {
+    let offsets = calculate_offsets(i, j, matrix.len(), matrix[i].len());
     let mut count = 0;
-    for (x_off, y_off) in indexes {
-        let x = match i.checked_add_signed(x_off) {
-            Some(x) => x,
-            None => continue,
-        };
-        let y = match j.checked_add_signed(y_off) {
-            Some(y) => y,
-            None => continue,
-        };
-        if x <= row_count && y <= col_count && matrix[x][y] == b'*' {
+    for (x, y) in offsets {
+        if matrix[x][y] == b'*' {
             count += 1;
         }
     }
@@ -35,16 +36,6 @@ fn count_adjacent(i: usize, j: usize, matrix: &[&[u8]]) -> char {
 }
 
 pub fn annotate2(minefield: String, rows: usize, cols: usize) -> Result<String, FromUtf8Error> {
-    let indexes = [
-        (1, 1),
-        (1, -1),
-        (-1, 1),
-        (-1, -1),
-        (0, 1),
-        (0, -1),
-        (1, 0),
-        (-1, 0),
-    ];
     let mut bytes = minefield.into_bytes();
     for i in 0..rows {
         for j in 0..cols {
@@ -53,16 +44,9 @@ pub fn annotate2(minefield: String, rows: usize, cols: usize) -> Result<String, 
                 continue;
             }
             let mut count = 0;
-            for (x_off, y_off) in indexes.iter() {
-                let x = match i.checked_add_signed(*x_off) {
-                    Some(x) => x,
-                    None => continue,
-                };
-                let y = match j.checked_add_signed(*y_off) {
-                    Some(y) => y,
-                    None => continue,
-                };
-                if x < rows && y < cols && bytes[x * cols + y] == b'*' {
+            let offsets = calculate_offsets(i, j, rows, cols);
+            for (x, y) in offsets {
+                if bytes[x * cols + y] == b'*' {
                     count += 1;
                 }
             }
