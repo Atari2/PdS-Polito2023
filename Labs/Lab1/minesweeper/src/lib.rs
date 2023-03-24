@@ -1,18 +1,9 @@
 use std::string::FromUtf8Error;
+use itertools::Itertools;
 
 fn calculate_offsets(i: usize, j: usize, rows: usize, cols: usize) -> impl Iterator<Item = (usize, usize)> {
-    let indexes: &'static [(isize, isize); 8] = &[
-        (1, 1),
-        (1, -1),
-        (-1, 1),
-        (-1, -1),
-        (0, 1),
-        (0, -1),
-        (1, 0),
-        (-1, 0),
-    ];
-    indexes.iter().filter_map(move |(x_off, y_off)| {
-        let (x, y) = (i.checked_add_signed(*x_off), j.checked_add_signed(*y_off));
+    (-1..=1).cartesian_product(-1..=1).filter_map(move |(x_off, y_off)| {
+        let (x, y) = (i.checked_add_signed(x_off), j.checked_add_signed(y_off));
         match (x, y) {
             (Some(x), Some(y)) if x < rows && y < cols => Some((x, y)),
             _ => None,
