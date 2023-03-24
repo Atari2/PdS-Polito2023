@@ -1,9 +1,9 @@
 use std::string::FromUtf8Error;
 
-fn count_adjacent(i: i64, j: i64, matrix: &[&[u8]]) -> u8 {
-    let row_count = (matrix.len() - 1) as i64;
-    let col_count = (matrix[i as usize].len() - 1) as i64;
-    let indexes = vec![
+fn count_adjacent(i: usize, j: usize, matrix: &[&[u8]]) -> char {
+    let row_count = matrix.len() - 1;
+    let col_count = matrix[i].len() - 1;
+    let indexes = [
         (1, 1),
         (1, -1),
         (-1, 1),
@@ -15,22 +15,27 @@ fn count_adjacent(i: i64, j: i64, matrix: &[&[u8]]) -> u8 {
     ];
     let mut count = 0;
     for (x_off, y_off) in indexes {
-        let x = i + x_off;
-        let y = j + y_off;
-        if x >= 0
-            && x <= row_count
-            && y >= 0
-            && y <= col_count
-            && matrix[x as usize][y as usize] == b'*'
-        {
+        let x = match i.checked_add_signed(x_off) {
+            Some(x) => x,
+            None => continue,
+        };
+        let y = match j.checked_add_signed(y_off) {
+            Some(y) => y,
+            None => continue,
+        };
+        if x <= row_count && y <= col_count && matrix[x][y] == b'*' {
             count += 1;
         }
     }
-    count
+    if count == 0 {
+        ' '
+    } else {
+        (b'0' + count) as char
+    }
 }
 
 pub fn annotate2(minefield: String, rows: usize, cols: usize) -> Result<String, FromUtf8Error> {
-    let indexes: Vec<(i64, i64)> = vec![
+    let indexes = [
         (1, 1),
         (1, -1),
         (-1, 1),
@@ -49,21 +54,21 @@ pub fn annotate2(minefield: String, rows: usize, cols: usize) -> Result<String, 
             }
             let mut count = 0;
             for (x_off, y_off) in indexes.iter() {
-                let x = i as i64 + x_off;
-                let y = j as i64 + y_off;
-                if x >= 0
-                    && x < rows as i64
-                    && y >= 0
-                    && y < cols as i64
-                    && bytes[(x * cols as i64 + y) as usize] == b'*'
-                {
+                let x = match i.checked_add_signed(*x_off) {
+                    Some(x) => x,
+                    None => continue,
+                };
+                let y = match j.checked_add_signed(*y_off) {
+                    Some(y) => y,
+                    None => continue,
+                };
+                if x < rows && y < cols && bytes[x * cols + y] == b'*' {
                     count += 1;
                 }
             }
-            if count == 0 {
-                continue;
+            if count > 0 {
+                bytes[i * cols + j] = b'0' + count;
             }
-            bytes[i * cols + j] = b'0' + count;
         }
     }
     String::from_utf8(bytes)
@@ -78,13 +83,7 @@ pub fn annotate(minefield: &[&str]) -> Vec<String> {
             if *cell == b'*' {
                 current_row.push('*');
             } else {
-                let count = count_adjacent(i as i64, j as i64, &bytes_minefield);
-                if count == 0 {
-                    current_row.push(' ');
-                }
-                else {
-                    current_row.push((b'0' + count) as char);
-                }
+                current_row.push(count_adjacent(i, j, &bytes_minefield));
             }
         }
         result.push(current_row);

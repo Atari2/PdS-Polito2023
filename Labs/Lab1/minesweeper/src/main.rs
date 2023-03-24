@@ -1,14 +1,13 @@
 use clap::Parser;
 use minesweeper::{annotate, annotate2};
 
-
 #[derive(Parser)]
 struct Args {
     #[arg(short, long)]
     rows: usize,
     #[arg(short, long)]
     cols: usize,
-    board: String
+    board: String,
 }
 
 fn transform_board(rows: usize, cols: usize, input_board: &str) -> Vec<&str> {
