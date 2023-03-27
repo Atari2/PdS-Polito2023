@@ -10,6 +10,12 @@ struct Args {
     board: String,
 }
 
+/*
+fn transform_board(board: &str, cols: usize) -> Vec<&str> {
+    // unsafe because we are assuming that the board is valid utf8
+    board.as_bytes().chunks(cols).map(|c| unsafe { std::str::from_utf8_unchecked(c) }).collect::<Vec<&str>>()
+}
+*/
 fn transform_board(rows: usize, cols: usize, input_board: &str) -> Vec<&str> {
     let mut board = vec![];
     for i in 0..rows {
