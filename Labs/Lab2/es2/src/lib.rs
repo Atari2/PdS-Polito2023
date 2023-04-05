@@ -1,4 +1,4 @@
-use std::{io::{BufRead, Read, Seek, Write}, time::UNIX_EPOCH};
+use std::{io::{BufRead, Seek, Write}, time::UNIX_EPOCH};
 
 use fcntl::{lock_file, unlock_file, FcntlLockType};
 use rand::Rng;
@@ -22,6 +22,15 @@ pub struct SensorFileMetadata {
     current_size: u64,
 }
 
+pub trait BinPack {
+    fn to_bytes<T: Write>(&self, writer: &mut std::io::BufWriter<T>) -> Result<(), std::io::Error>
+    where
+        Self: Sized;
+    fn from_bytes<T: BufRead + Seek>(reader: &mut T) -> Option<Self>
+    where
+        Self: Sized;
+}
+
 impl Default for SensorFileMetadata {
     fn default() -> Self {
         SensorFileMetadata {
@@ -30,6 +39,28 @@ impl Default for SensorFileMetadata {
             buffer_size: 20,
             current_size: 0,
         }
+    }
+}
+
+impl BinPack for SensorFileMetadata {
+    fn from_bytes<T: BufRead + Seek>(reader: &mut T) -> Option<Self> {
+        let mut buf = [0u8; std::mem::size_of::<Self>()];
+        match reader.rewind() {
+            Ok(_) => (),
+            Err(_) => return None,
+        }
+        match reader.read_exact(&mut buf) {
+            Ok(_) => unsafe { Some(std::mem::transmute(buf)) },
+            Err(_) => None,
+        }
+    }
+    fn to_bytes<T: Write>(
+        &self,
+        writer: &mut std::io::BufWriter<T>,
+    ) -> Result<(), std::io::Error> {
+        let buf: [u8; std::mem::size_of::<Self>()] = unsafe { std::mem::transmute(*self) };
+        writer.write_all(&buf)?;
+        Ok(())
     }
 }
 
@@ -42,26 +73,7 @@ impl SensorFileMetadata {
             current_size: 0,
         }
     }
-    pub fn from_bytes<T: BufRead + Seek>(file: &mut T) -> Option<Self> {
-        let mut buf = [0u8; std::mem::size_of::<Self>()];
-        let mut reader = std::io::BufReader::new(file);
-        match reader.rewind() {
-            Ok(_) => (),
-            Err(_) => return None,
-        }
-        match reader.read_exact(&mut buf) {
-            Ok(_) => unsafe { Some(std::mem::transmute(buf)) },
-            Err(_) => None,
-        }
-    }
-    pub fn to_bytes<T: Write>(
-        &self,
-        writer: &mut std::io::BufWriter<T>,
-    ) -> Result<(), std::io::Error> {
-        let buf: [u8; std::mem::size_of::<Self>()] = unsafe { std::mem::transmute(*self) };
-        writer.write_all(&buf)?;
-        Ok(())
-    }
+
     pub fn advance_write_head(&mut self) -> Result<(), std::io::Error> {
         if self.current_size == self.buffer_size {
             Err(std::io::Error::new(
@@ -91,21 +103,23 @@ impl SensorFileMetadata {
     }
 }
 
-impl SensorData {
-    pub fn to_bytes<T: Write>(
+impl BinPack for SensorData {
+    fn to_bytes<T: Write>(
         &self,
         writer: &mut std::io::BufWriter<T>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), std::io::Error> {
         let buf: [u8; std::mem::size_of::<Self>()] = unsafe { std::mem::transmute(*self) };
         writer.write_all(&buf)?;
         Ok(())
     }
-    pub fn from_bytes<T: Read + Seek>(
+    fn from_bytes<T: BufRead + Seek>(
         reader: &mut T,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    ) -> Option<Self> {
         let mut buf = [0u8; std::mem::size_of::<Self>()];
-        reader.read_exact(&mut buf)?;
-        Ok(unsafe { std::mem::transmute(buf) })
+        match reader.read_exact(&mut buf) {
+            Ok(_) => unsafe { Some(std::mem::transmute(buf)) },
+            Err(_) => None,
+        }
     }
 }
 

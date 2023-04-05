@@ -1,5 +1,5 @@
 use clap::Parser;
-use sensors::{sensor_lock_file, sensor_unlock_file, SensorData, SensorFileMetadata, Args};
+use sensors::{sensor_lock_file, sensor_unlock_file, SensorData, SensorFileMetadata, Args, BinPack};
 use std::{
     fs::OpenOptions,
     io::{Seek, Write},
@@ -40,10 +40,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
         println!("Read metadata {:?}", metadata);
         let mut data = vec![];
-        for _ in 0..10 {
+        for _ in 0..args.sensors {
             let offset = metadata.read_head * SENSOR_DATA_SIZE + METADATA_SIZE;
             reader.seek(std::io::SeekFrom::Start(offset))?;
-            let d = SensorData::from_bytes(&mut reader)?;
+            let d = match SensorData::from_bytes(&mut reader) {
+                Some(d) => d,
+                None => Err(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "Could not read data",
+                ))?,
+            };
             if args.verbose {
                 println!("Read data {:?}", d);
             }

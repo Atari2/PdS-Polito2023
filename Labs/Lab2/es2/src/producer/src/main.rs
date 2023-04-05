@@ -1,6 +1,6 @@
 use clap::Parser;
 use sensors::{
-    sensor_lock_file, sensor_unlock_file, simulate_sensor, SensorData, SensorFileMetadata, Args,
+    sensor_lock_file, sensor_unlock_file, simulate_sensor, SensorData, SensorFileMetadata, Args, BinPack,
 };
 use std::{
     fs::OpenOptions,
