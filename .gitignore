@@ -12,4 +12,4 @@ Cargo.lock
 tests/
 
 # random files per lab
-Labs/Lab2/es2/sensor_data.bin
+Labs/Lab2/es2/*.bin
