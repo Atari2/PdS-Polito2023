@@ -1,10 +1,12 @@
 [package]
-name = "es1"
+name = "binary_io_derive"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+proc-macro = true
 
 [dependencies]
-clap = { version = "4.2.1", features = ["derive"] }
-binary_io = { path = "binary_io" }
+quote = "1.0.26"
+syn = "2.0.13"

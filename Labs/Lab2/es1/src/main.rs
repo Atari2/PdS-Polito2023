@@ -3,10 +3,10 @@ use std::{
     fmt::Display,
     fmt::Formatter,
     fs::File,
-    io::Read,
     os::raw::{c_char, c_float, c_int, c_long},
 };
 use clap::Parser;
+use binary_io::{BinPack, BinaryIO, Write};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
@@ -66,19 +66,10 @@ union ValueUnion {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, BinaryIO)]
 struct CData {
     value_type: c_int,
     value: ValueUnion,
-}
-
-impl CData {
-    fn from_file(reader: &mut std::io::BufReader<File>) -> Result<Self, Box<dyn std::error::Error>> {
-        const SIZE: usize = std::mem::size_of::<CData>();
-        let mut buf: [u8; SIZE] = [0; SIZE];
-        reader.read_exact(&mut buf)?;
-        Ok(unsafe { std::mem::transmute::<[u8; SIZE], CData>(buf) })
-    }
 }
 
 impl Display for CData {
@@ -108,7 +99,7 @@ fn main() {
     };
     let mut reader = std::io::BufReader::new(f);
     let mut imported_data = vec![];
-    while let Ok(data) = CData::from_file(&mut reader) {
+    while let Some(data) = CData::from_bytes(&mut reader) {
         imported_data.push(data);
     }
     for data in imported_data.iter() {
