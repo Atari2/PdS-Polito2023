@@ -137,11 +137,8 @@ impl File {
 
 impl PartialEq<Path> for File {
     fn eq(&self, other: &Path) -> bool {
-        let other_as_str = match other.to_str() {
-            Some(path) => path,
-            None => return false,
-        };
-        self.name == other_as_str
+        let self_as_path = Path::new(self.name.as_str());
+        self_as_path == other
     }
 }
 
@@ -472,11 +469,8 @@ impl<'b> Dir {
 
 impl PartialEq<Path> for Dir {
     fn eq(&self, other: &Path) -> bool {
-        let other_as_str = match other.to_str() {
-            Some(path) => path,
-            None => return false,
-        };
-        self.name == other_as_str
+        let self_as_path = Path::new(self.name.as_str());
+        self_as_path == other
     }
 }
 
@@ -494,14 +488,11 @@ pub enum Node {
 
 impl PartialEq<Path> for Node {
     fn eq(&self, other: &Path) -> bool {
-        let other_as_str = match other.to_str() {
-            Some(path) => path,
-            None => return false,
+        let self_as_path = match self {
+            Self::File(f) => Path::new(f.name.as_str()),
+            Self::Dir(d) => Path::new(d.name.as_str()),
         };
-        match self {
-            Self::File(f) => f.name == other_as_str,
-            Self::Dir(d) => d.name == other_as_str,
-        }
+        self_as_path == other
     }
 }
 
@@ -581,6 +572,29 @@ impl<'b> FileSystem {
         }
         pb
     }
+
+    #[cfg(target_os = "windows")]
+    fn make_root_abs(&mut self, path: &str) -> Result<(), FileOrDirError> {
+        let mut path = PathBuf::from(path);
+        if !path.is_absolute() {
+            path = PathBuf::from("C:\\").join(path);
+        }
+        self.root =
+            Dir::empty_from_parts(&path, timestamp_to_u64(std::time::SystemTime::now())?)?;
+        Ok(())
+    }
+
+    #[cfg(target_os = "linux")]
+    fn make_root_abs(&mut self, path: &str) -> Result<(), FileOrDirError>  {
+        let mut path = PathBuf::from(path);
+        if !path.starts_with(std::path::MAIN_SEPARATOR_STR) {
+            path = PathBuf::from(std::path::MAIN_SEPARATOR_STR).join(path);
+        }
+        self.root =
+            Dir::empty_from_parts(&path, timestamp_to_u64(std::time::SystemTime::now())?)?;
+        Ok(())
+    }
+
     pub fn from_dir(path: &str) -> Result<FileSystem, FileOrDirError> {
         let mut fs = FileSystem::new();
         fs.root = Dir::new(path)?;
@@ -590,12 +604,7 @@ impl<'b> FileSystem {
         // special case empty fs
         let pb = self.make_absolute(path);
         if self.root.name.is_empty() {
-            let mut path = PathBuf::from(path);
-            if !path.starts_with(std::path::MAIN_SEPARATOR_STR) {
-                path = PathBuf::from(std::path::MAIN_SEPARATOR_STR).join(path);
-            }
-            self.root =
-                Dir::empty_from_parts(&path, timestamp_to_u64(std::time::SystemTime::now())?)?;
+            self.make_root_abs(path)?;
         } else {
             self.root.mk_dir(&pb)?;
         }

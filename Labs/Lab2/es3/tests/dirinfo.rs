@@ -62,6 +62,7 @@ pub fn test_rm_file() {
 }
 
 #[test]
+#[cfg(target_os = "linux")]
 pub fn test_get_file() {
     let mut fs = FileSystem::new();
     fs.mk_dir("a").unwrap();
@@ -96,6 +97,45 @@ pub fn test_get_file() {
     assert!(testtxt.name() == "/a/b/test2.bin");
     assert!(*testtxt.filetype() == FileType::Binary);
     let testtxt = fs.get_file("/a/d/test.txt");
+    assert!(testtxt.is_none());
+}
+
+#[test]
+#[cfg(target_os = "windows")]
+pub fn test_get_file() {
+    let mut fs = FileSystem::new();
+    fs.mk_dir("a").unwrap();
+    fs.mk_dir("/a/b").unwrap();
+    fs.mk_dir("/a/c").unwrap();
+    fs.new_file(File::from_name("/a/test.txt")).unwrap();
+    fs.new_file(File::from_name("/a/b/test.txt")).unwrap();
+    fs.new_file(File::from_name("/a/c/test.txt")).unwrap();
+    fs.new_file(File::from_name("/a/b/test2.bin")).unwrap();
+    let testtxt = fs.get_file("/a/test.txt");
+    assert!(testtxt.is_some());
+    let testtxt = testtxt.unwrap();
+    assert!(testtxt.name() == "C:/a/test.txt");
+    let filename = testtxt.filename();
+    assert!(filename.is_ok());
+    let filename = filename.unwrap();
+    assert!(filename == "test.txt");
+    assert!(*testtxt.filetype() == FileType::Text);
+    let testtxt = fs.get_file("C:/a/b/test.txt");
+    assert!(testtxt.is_some());
+    let testtxt = testtxt.unwrap();
+    assert!(testtxt.name() == "C:/a/b/test.txt");
+    assert!(*testtxt.filetype() == FileType::Text);
+    let testtxt = fs.get_file("C:/a/c/test.txt");
+    assert!(testtxt.is_some());
+    let testtxt = testtxt.unwrap();
+    assert!(testtxt.name() == "C:/a/c/test.txt");
+    assert!(*testtxt.filetype() == FileType::Text);
+    let testtxt = fs.get_file("C:/a/b/test2.bin");
+    assert!(testtxt.is_some());
+    let testtxt = testtxt.unwrap();
+    assert!(testtxt.name() == "C:/a/b/test2.bin");
+    assert!(*testtxt.filetype() == FileType::Binary);
+    let testtxt = fs.get_file("C:/a/d/test.txt");
     assert!(testtxt.is_none());
 }
 
