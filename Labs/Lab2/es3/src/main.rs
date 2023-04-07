@@ -1,9 +1,9 @@
-use dirinfo::FileSystem;
+use dirinfo::{FileOrDirError, FileSystem};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut fs = FileSystem::from_dir("/home/alessiorosiello/Dev/PdS-Polito2023/Labs/Lab2/es3/src")?;
-    fs.mk_dir("/home/alessiorosiello/Dev/PdS-Polito2023/Labs/Lab2/es3/src/a")?;
-    fs.mk_dir("a/b")?;
-    println!("{}", fs);
+fn main() -> Result<(), FileOrDirError> {
+    let mut fs = FileSystem::from_dir("/home/alessiorosiello/Dev/PdS-Polito2023/Labs/Lab2/es3")?;
+    let queries = vec!["name:.toml", "content:main"];
+    let res = fs.search(&queries);
+    println!("{}", res);
     Ok(())
 }

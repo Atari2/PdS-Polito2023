@@ -13,3 +13,4 @@ tests/
 
 # random files per lab
 Labs/Lab2/es2/*.bin
+!Labs/Lab2/es3/tests
