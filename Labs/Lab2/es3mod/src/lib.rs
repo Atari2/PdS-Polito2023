@@ -111,7 +111,7 @@ impl<'b> FileSystem {
         if !path.starts_with(std::path::MAIN_SEPARATOR_STR) {
             path = PathBuf::from(std::path::MAIN_SEPARATOR_STR).join(path);
         }
-        self.root = Dir::empty_from_parts(path, std::time::SystemTime::now())?;
+        self.root = Some(Dir::empty_from_parts(path, std::time::SystemTime::now())?);
         Ok(())
     }
 
