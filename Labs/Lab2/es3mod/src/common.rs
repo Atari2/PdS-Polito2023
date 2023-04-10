@@ -43,3 +43,5 @@ impl From<std::time::SystemTimeError> for FileOrDirError {
         FileOrDirError::SystemTimeError(e)
     }
 }
+
+pub type FsResult<T> = Result<T, FileOrDirError>;

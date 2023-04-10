@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 use crate::node::Node;
-use crate::common::FileOrDirError;
+use crate::common::{FsResult, FileOrDirError};
 use crate::file::File;
 use crate::{QueryType, MatchResult, FileType};
 
@@ -89,14 +89,14 @@ impl<'b> Dir {
     pub fn empty_from_parts(
         name: PathBuf,
         creation_time: SystemTime,
-    ) -> Result<Dir, FileOrDirError> {
+    ) -> FsResult<Dir> {
         Ok(Dir {
             name,
             creation_time,
             children: vec![],
         })
     }
-    pub fn new(path: PathBuf) -> Result<Dir, FileOrDirError> {
+    pub fn new(path: PathBuf) -> FsResult<Dir> {
         let mut dir = Dir {
             name: path,
             creation_time: SystemTime::now(),
@@ -125,7 +125,7 @@ impl<'b> Dir {
         }
         Ok(dir)
     }
-    pub fn mk_dir(&mut self, path: &Path) -> Result<(), FileOrDirError> {
+    pub fn mk_dir(&mut self, path: &Path) -> FsResult<()> {
         if path.starts_with(&self.name) {
             match path.parent() {
                 Some(parent) => {
@@ -158,7 +158,7 @@ impl<'b> Dir {
         }
         Err(FileOrDirError::ParentDoesNotExist)
     }
-    pub fn rm_dir(&mut self, path: &Path) -> Result<(), FileOrDirError> {
+    pub fn rm_dir(&mut self, path: &Path) -> FsResult<()> {
         if path.starts_with(&self.name) {
             // one of our children may have the path
             let mut found = false;
@@ -188,7 +188,7 @@ impl<'b> Dir {
         }
         Err(FileOrDirError::ParentDoesNotExist)
     }
-    pub fn new_file(&mut self, path: &Path) -> Result<(), FileOrDirError> {
+    pub fn new_file(&mut self, path: &Path) -> FsResult<()> {
         if path.starts_with(&self.name) {
             let parent = path.parent().ok_or(FileOrDirError::ParentDoesNotExist)?;
             if self == path {
@@ -215,7 +215,7 @@ impl<'b> Dir {
         }
         Err(FileOrDirError::ParentDoesNotExist)
     }
-    pub fn rm_file(&mut self, path: &Path) -> Result<(), FileOrDirError> {
+    pub fn rm_file(&mut self, path: &Path) -> FsResult<()> {
         if self == path {
             return Err(FileOrDirError::IsDirectory);
         } else if path.starts_with(&self.name) {

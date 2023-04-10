@@ -6,7 +6,7 @@ pub mod node;
 use std::{fmt::Display, time::Duration};
 use std::time::SystemTime;
 use std::path::PathBuf;
-pub use common::{FileOrDirError, FileType};
+pub use common::{FileOrDirError, FileType, FsResult};
 pub use dir::Dir;
 pub use file::File;
 pub use node::Node;
@@ -78,7 +78,7 @@ impl<'b> FileSystem {
             root: None,
         }
     }
-    fn make_absolute(&self, pb: &str) -> Result<PathBuf, FileOrDirError> {
+    fn make_absolute(&self, pb: &str) -> FsResult<PathBuf> {
         let root = self.root.as_ref().ok_or(FileOrDirError::ParentDoesNotExist)?;
         let mut pb = PathBuf::from(pb);
         if !pb.is_absolute() {
@@ -87,7 +87,7 @@ impl<'b> FileSystem {
         Ok(pb)
     }
 
-    fn make_absolute_no_borrow(root: &Dir, pb: &str) -> Result<PathBuf, FileOrDirError> {
+    fn make_absolute_no_borrow(root: &Dir, pb: &str) -> FsResult<PathBuf> {
         let mut pb = PathBuf::from(pb);
         if !pb.is_absolute() {
             pb = PathBuf::from(&root.name()).join(pb);
@@ -96,7 +96,7 @@ impl<'b> FileSystem {
     }
 
     #[cfg(target_os = "windows")]
-    fn make_root_abs(&mut self, path: &str) -> Result<(), FileOrDirError> {
+    fn make_root_abs(&mut self, path: &str) -> FsResult<()> {
         let mut path = PathBuf::from(path);
         if !path.is_absolute() {
             path = PathBuf::from("C:\\").join(path);
@@ -106,7 +106,7 @@ impl<'b> FileSystem {
     }
 
     #[cfg(target_os = "linux")]
-    fn make_root_abs(&mut self, path: &str) -> Result<(), FileOrDirError> {
+    fn make_root_abs(&mut self, path: &str) -> FsResult<()> {
         let mut path = PathBuf::from(path);
         if !path.starts_with(std::path::MAIN_SEPARATOR_STR) {
             path = PathBuf::from(std::path::MAIN_SEPARATOR_STR).join(path);
@@ -115,12 +115,12 @@ impl<'b> FileSystem {
         Ok(())
     }
 
-    pub fn from_dir(path: &str) -> Result<FileSystem, FileOrDirError> {
+    pub fn from_dir(path: &str) -> FsResult<FileSystem> {
         let mut fs = FileSystem::new();
         fs.root = Some(Dir::new(PathBuf::from(path))?);
         Ok(fs)
     }
-    pub fn mk_dir(&mut self, path: &str) -> Result<(), FileOrDirError> {
+    pub fn mk_dir(&mut self, path: &str) -> FsResult<()> {
         // special case empty fs
         match &mut self.root {
             Some(root) => {
@@ -133,7 +133,7 @@ impl<'b> FileSystem {
         }
         Ok(())
     }
-    pub fn rm_dir(&mut self, path: &str) -> Result<(), FileOrDirError> {
+    pub fn rm_dir(&mut self, path: &str) -> FsResult<()> {
         let pb = self.make_absolute(path)?;
         let root = self.root.as_mut().ok_or(FileOrDirError::ParentDoesNotExist)?;
         if *root == pb {
@@ -147,7 +147,7 @@ impl<'b> FileSystem {
         Ok(())
     }
     /* accordign to homework sheet signature should be &mut self, path: &str, file: File but since path is already contained in File it doesn't make sense to duplicate the information */
-    pub fn new_file(&mut self, file: File) -> Result<(), FileOrDirError> {
+    pub fn new_file(&mut self, file: File) -> FsResult<()> {
         let root = self.root.as_mut().ok_or(FileOrDirError::ParentDoesNotExist)?;
         let pb = PathBuf::from(&root.name()).join(file.name());
         if *root == pb {
@@ -155,7 +155,7 @@ impl<'b> FileSystem {
         }
         root.new_file(&pb)
     }
-    pub fn rm_file(&mut self, path: &str) -> Result<(), FileOrDirError> {
+    pub fn rm_file(&mut self, path: &str) -> FsResult<()> {
         let pb = self.make_absolute(path)?;
         let root = self.root.as_mut().ok_or(FileOrDirError::ParentDoesNotExist)?;
         root.rm_file(&pb)

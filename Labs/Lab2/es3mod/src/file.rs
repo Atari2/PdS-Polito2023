@@ -2,7 +2,7 @@ use std::fs::OpenOptions;
 use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
-use crate::common::{FileOrDirError, FileType};
+use crate::common::{FileOrDirError, FileType, FsResult};
 
 pub struct File {
     name: PathBuf,
@@ -33,13 +33,13 @@ impl File {
     pub fn creation_time(&self) -> &SystemTime {
         &self.creation_time
     }
-    pub fn filename(&self) -> Result<&str, FileOrDirError> {
+    pub fn filename(&self) -> FsResult<&str> {
         self.name
             .file_name()
             .ok_or(FileOrDirError::InvalidUtf8)
             .and_then(|os_str| os_str.to_str().ok_or(FileOrDirError::InvalidUtf8))
     }
-    pub fn new(name: PathBuf, metadata: std::fs::Metadata) -> Result<File, FileOrDirError> {
+    pub fn new(name: PathBuf, metadata: std::fs::Metadata) -> FsResult<File> {
         let mut content = vec![];
         let file = OpenOptions::new().read(true).open(&name)?;
         let mut reader = BufReader::new(file.take(1000));
@@ -71,7 +71,7 @@ impl File {
     pub fn empty_from_parts(
         path: &Path,
         creation_time: SystemTime,
-    ) -> Result<File, FileOrDirError> {
+    ) -> FsResult<File> {
         let extension = match path.extension() {
             Some(ext) => ext.to_str().ok_or(FileOrDirError::InvalidUtf8)?,
             None => "",
