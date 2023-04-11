@@ -1,10 +1,10 @@
-use std::collections::HashSet;
+use crate::common::{FileOrDirError, FsResult};
+use crate::file::File;
+use crate::node::Node;
+use crate::{MatchResult, QueryType};
+use std::fmt::Display;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
-use crate::node::Node;
-use crate::common::{FsResult, FileOrDirError};
-use crate::file::File;
-use crate::{QueryType, MatchResult, FileType};
 
 #[derive(Debug)]
 pub struct Dir {
@@ -23,7 +23,7 @@ impl Default for Dir {
     }
 }
 
-impl std::fmt::Display for Dir {
+impl Display for Dir {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut depth = 0;
         self.directory_structure(f, &mut depth, None)?;
@@ -51,8 +51,10 @@ impl<'b> Dir {
         let name = match parent {
             Some(parent) => {
                 *depth += parent.name.file_name().ok_or(std::fmt::Error)?.len();
-                self.name.strip_prefix(&parent.name).map_err(|_| std::fmt::Error)?
-            },
+                self.name
+                    .strip_prefix(&parent.name)
+                    .map_err(|_| std::fmt::Error)?
+            }
             None => {
                 let name = self.name.file_name().ok_or(std::fmt::Error)?;
                 Path::new(name)
@@ -65,16 +67,31 @@ impl<'b> Dir {
         } else {
             f.write_fmt(format_args!("{}└--{}\n", indent_string, name.display()))?;
         }
-        let mut child_iter = self.children.iter().filter_map(|child| match child {
-            Node::File(f) => Some(f),
-            _ => None
-        }).peekable();
+        let mut child_iter = self
+            .children
+            .iter()
+            .filter_map(|child| match child {
+                Node::File(f) => Some(f),
+                _ => None,
+            })
+            .peekable();
         while let Some(child) = child_iter.next() {
-            let name_without_parent = child.name().strip_prefix(&self.name).map_err(|_| std::fmt::Error)?;
+            let name_without_parent = child
+                .name()
+                .strip_prefix(&self.name)
+                .map_err(|_| std::fmt::Error)?;
             if child_iter.peek().is_some() {
-                f.write_fmt(format_args!("{}|--{}\n", next_indent, name_without_parent.display()))?;
+                f.write_fmt(format_args!(
+                    "{}|--{}\n",
+                    next_indent,
+                    name_without_parent.display()
+                ))?;
             } else {
-                f.write_fmt(format_args!("{}└--{}\n", next_indent, name_without_parent.display()))?;
+                f.write_fmt(format_args!(
+                    "{}└--{}\n",
+                    next_indent,
+                    name_without_parent.display()
+                ))?;
             }
         }
         for child in self.children.iter() {
@@ -86,10 +103,7 @@ impl<'b> Dir {
         Ok(())
     }
 
-    pub fn empty_from_parts(
-        name: PathBuf,
-        creation_time: SystemTime,
-    ) -> FsResult<Dir> {
+    pub fn empty_from_parts(name: PathBuf, creation_time: SystemTime) -> FsResult<Dir> {
         Ok(Dir {
             name,
             creation_time,
@@ -269,6 +283,14 @@ impl<'b> Dir {
     where
         'b: 'a,
     {
+        struct SingleMatch<'a> {
+            query: &'a str,
+            node: &'a mut Node,
+        }
+        enum PartialResult<'a> {
+            File(SingleMatch<'a>),
+            Dir(MatchResult<'a>),
+        }
         let mut result = MatchResult {
             queries: vec![],
             nodes: vec![],
@@ -278,85 +300,52 @@ impl<'b> Dir {
             .iter_mut()
             .filter_map(|ch| {
                 match ch {
-                    Node::File(file) => {
+                    Node::File(_) => {
                         for q in queries.iter() {
-                            match q {
-                                QueryType::Name(_, name) => {
-                                    if file.name().components().any(|c| {
-                                        match c.as_os_str().to_str() {
-                                            Some(s) => s.contains(name),
-                                            None => false,
-                                        }
-                                    }) {
-                                        return Some(MatchResult {
-                                            queries: vec![q.to_str()],
-                                            nodes: vec![ch],
-                                        });
-                                    }
-                                }
-                                QueryType::Content(_, content) => {
-                                    if *file.filetype() == FileType::Text {
-                                        let file_contents = match std::str::from_utf8(file.content())
-                                        {
-                                            Ok(content) => content,
-                                            Err(_) => continue,
-                                        };
-                                        if file_contents.contains(content) {
-                                            return Some(MatchResult {
-                                                queries: vec![q.to_str()],
-                                                nodes: vec![ch],
-                                            });
-                                        }
-                                    }
-                                }
-                                QueryType::Larger(_, size) => {
-                                    if file.content().len() > *size {
-                                        return Some(MatchResult {
-                                            queries: vec![q.to_str()],
-                                            nodes: vec![ch],
-                                        });
-                                    }
-                                }
-                                QueryType::Smaller(_, size) => {
-                                    if file.content().len() < *size {
-                                        return Some(MatchResult {
-                                            queries: vec![q.to_str()],
-                                            nodes: vec![ch],
-                                        });
-                                    }
-                                }
-                                QueryType::Newer(_, timestamp) => {
-                                    if file.creation_time() > timestamp {
-                                        return Some(MatchResult {
-                                            queries: vec![q.to_str()],
-                                            nodes: vec![ch],
-                                        });
-                                    }
-                                }
-                                QueryType::Older(_, timestamp) => {
-                                    if file.creation_time() < timestamp {
-                                        return Some(MatchResult {
-                                            queries: vec![q.to_str()],
-                                            nodes: vec![ch],
-                                        });
-                                    }
-                                }
+                            if q.matches(ch) {
+                                return Some(PartialResult::File(SingleMatch {
+                                    query: q.to_str(),
+                                    node: ch,
+                                }));
                             }
                         }
                     }
                     Node::Dir(dir) => {
-                        let partial = dir.search(queries);
-                        return Some(partial);
+                        let dir_partials = dir.search(queries);
+                        // so here there should be the part where I check if dir matches any of the queries as well
+                        // however I can't seem to find a way to do a search on the dir and at the same time
+                        // because I can't call q.matches(ch) because I can't borrow it again
+                        // and I can't assign ch to node in SingleMatch for the same reason
+                        // everything I tried results in the same issue every single time and at this point I'm not sure what to do.
+                        /* 
+                        for q in queries.iter() {
+                            if q.matches(ch) {
+                                dir_partials.queries.push(q.to_str());
+                                dir_partials.nodes.push(ch);
+                                break;
+                            }
+                        }
+                        */
+                        return Some(PartialResult::Dir(dir_partials));
                     }
                 }
                 None
             })
-            .collect::<Vec<MatchResult>>();
+            .collect::<Vec<PartialResult>>();
         for partial in partials {
-            result.queries.extend(partial.queries);
-            result.nodes.extend(partial.nodes);
+            match partial {
+                PartialResult::File(SingleMatch { query, node }) => {
+                    result.queries.push(query);
+                    result.nodes.push(node);
+                }
+                PartialResult::Dir(MatchResult { queries, nodes }) => {
+                    result.queries.extend(queries);
+                    result.nodes.extend(nodes);
+                }
+            }
         }
-        result.queries = result.queries.into_iter().collect::<HashSet<_>>().into_iter().collect();
+        result.queries.sort_unstable();
+        result.queries.dedup();
         result
     }
 }

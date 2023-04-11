@@ -1,8 +1,9 @@
+use crate::common::{FileOrDirError, FileType, FsResult};
+use std::fmt::Display;
 use std::fs::OpenOptions;
 use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
-use crate::common::{FileOrDirError, FileType, FsResult};
 
 pub struct File {
     name: PathBuf,
@@ -68,10 +69,7 @@ impl File {
             type_: FileType::Text,
         }
     }
-    pub fn empty_from_parts(
-        path: &Path,
-        creation_time: SystemTime,
-    ) -> FsResult<File> {
+    pub fn empty_from_parts(path: &Path, creation_time: SystemTime) -> FsResult<File> {
         let extension = match path.extension() {
             Some(ext) => ext.to_str().ok_or(FileOrDirError::InvalidUtf8)?,
             None => "",
@@ -99,5 +97,11 @@ impl PartialEq<Path> for File {
 impl PartialEq<PathBuf> for File {
     fn eq(&self, other: &PathBuf) -> bool {
         self == other
+    }
+}
+
+impl Display for File {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "File {{ Name: {}, Type: {} }}", self.name.display(), self.type_)
     }
 }

@@ -44,4 +44,13 @@ impl From<std::time::SystemTimeError> for FileOrDirError {
     }
 }
 
+impl Display for FileType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FileType::Text => write!(f, "Text"),
+            FileType::Binary => write!(f, "Binary"),
+        }
+    }
+}
+
 pub type FsResult<T> = Result<T, FileOrDirError>;

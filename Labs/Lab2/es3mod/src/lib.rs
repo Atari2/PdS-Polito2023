@@ -1,15 +1,15 @@
 pub mod common;
-pub mod file;
 pub mod dir;
+pub mod file;
 pub mod node;
 
-use std::{fmt::Display, time::Duration};
-use std::time::SystemTime;
-use std::path::PathBuf;
 pub use common::{FileOrDirError, FileType, FsResult};
 pub use dir::Dir;
 pub use file::File;
 pub use node::Node;
+use std::path::PathBuf;
+use std::time::SystemTime;
+use std::{fmt::Display, time::Duration};
 
 #[derive(Debug, Default)]
 pub struct FileSystem {
@@ -24,7 +24,6 @@ impl std::fmt::Display for FileSystem {
         }
     }
 }
-
 
 #[derive(Debug, Default)]
 pub struct MatchResult<'a> {
@@ -44,7 +43,7 @@ impl Display for MatchResult<'_> {
         result.pop();
         result.push_str("\nFound nodes: ");
         for node in self.nodes.iter() {
-            result.push_str(&format!("\n\t{:?}", node));
+            result.push_str(&format!("\n\t{}", node));
         }
         f.write_str(&result)
     }
@@ -70,16 +69,67 @@ impl<'a> QueryType<'a> {
             Self::Older(og, _) => og,
         }
     }
+    fn matches_file(&self, file: &File) -> bool {
+        match self {
+            Self::Name(_, name) => {
+                file.name()
+                    .components()
+                    .any(|c| match c.as_os_str().to_str() {
+                        Some(s) => s.contains(name),
+                        None => false,
+                    })
+            }
+            Self::Content(_, content) => {
+                if *file.filetype() == FileType::Text {
+                    let file_contents = match std::str::from_utf8(file.content()) {
+                        Ok(content) => content,
+                        Err(_) => return false,
+                    };
+                    file_contents.contains(content)
+                } else {
+                    false
+                }
+            }
+            Self::Larger(_, size) => file.content().len() > *size,
+            Self::Smaller(_, size) => file.content().len() < *size,
+            Self::Newer(_, time) => file.creation_time() > time,
+            Self::Older(_, time) => file.creation_time() < time,
+        }
+    }
+    fn matches_dir(&self, dir: &Dir) -> bool {
+        match self {
+            QueryType::Name(_, name) => {
+                dir.name()
+                    .components()
+                    .any(|c| match c.as_os_str().to_str() {
+                        Some(s) => s.contains(name),
+                        None => false,
+                    })
+            }
+            QueryType::Content(_, _) => false,
+            QueryType::Larger(_, _) => false,
+            QueryType::Smaller(_, _) => false,
+            QueryType::Newer(_, time) => dir.creation_time() > time,
+            QueryType::Older(_, time) => dir.creation_time() < time,
+        }
+    }
+    pub fn matches(&self, node: &Node) -> bool {
+        match node {
+            Node::File(file) => self.matches_file(file),
+            Node::Dir(dir) => self.matches_dir(dir),
+        }
+    }
 }
 
 impl<'b> FileSystem {
     pub fn new() -> FileSystem {
-        FileSystem {
-            root: None,
-        }
+        FileSystem { root: None }
     }
     fn make_absolute(&self, pb: &str) -> FsResult<PathBuf> {
-        let root = self.root.as_ref().ok_or(FileOrDirError::ParentDoesNotExist)?;
+        let root = self
+            .root
+            .as_ref()
+            .ok_or(FileOrDirError::ParentDoesNotExist)?;
         let mut pb = PathBuf::from(pb);
         if !pb.is_absolute() {
             pb = PathBuf::from(&root.name()).join(pb);
@@ -125,7 +175,7 @@ impl<'b> FileSystem {
         match &mut self.root {
             Some(root) => {
                 let pb = Self::make_absolute_no_borrow(root, path)?;
-                root.mk_dir(&pb)? 
+                root.mk_dir(&pb)?
             }
             None => {
                 self.make_root_abs(path)?;
@@ -135,7 +185,10 @@ impl<'b> FileSystem {
     }
     pub fn rm_dir(&mut self, path: &str) -> FsResult<()> {
         let pb = self.make_absolute(path)?;
-        let root = self.root.as_mut().ok_or(FileOrDirError::ParentDoesNotExist)?;
+        let root = self
+            .root
+            .as_mut()
+            .ok_or(FileOrDirError::ParentDoesNotExist)?;
         if *root == pb {
             if !root.children().is_empty() {
                 return Err(FileOrDirError::DirectoryNotEmpty);
@@ -148,7 +201,10 @@ impl<'b> FileSystem {
     }
     /* accordign to homework sheet signature should be &mut self, path: &str, file: File but since path is already contained in File it doesn't make sense to duplicate the information */
     pub fn new_file(&mut self, file: File) -> FsResult<()> {
-        let root = self.root.as_mut().ok_or(FileOrDirError::ParentDoesNotExist)?;
+        let root = self
+            .root
+            .as_mut()
+            .ok_or(FileOrDirError::ParentDoesNotExist)?;
         let pb = PathBuf::from(&root.name()).join(file.name());
         if *root == pb {
             return Err(FileOrDirError::AlreadyExists);
@@ -157,7 +213,10 @@ impl<'b> FileSystem {
     }
     pub fn rm_file(&mut self, path: &str) -> FsResult<()> {
         let pb = self.make_absolute(path)?;
-        let root = self.root.as_mut().ok_or(FileOrDirError::ParentDoesNotExist)?;
+        let root = self
+            .root
+            .as_mut()
+            .ok_or(FileOrDirError::ParentDoesNotExist)?;
         root.rm_file(&pb)
     }
     pub fn get_file(&mut self, path: &str) -> Option<&mut File> {
@@ -230,7 +289,7 @@ impl<'b> FileSystem {
             .collect();
         match &mut self.root {
             Some(root) => root.search(&queries),
-            None => MatchResult::default()
+            None => MatchResult::default(),
         }
     }
 }
