@@ -300,16 +300,12 @@ impl<'b> Dir {
             .iter_mut()
             .filter_map(|ch| {
                 match ch {
-                    Node::File(_) => {
-                        for q in queries.iter() {
-                            if q.matches(ch) {
-                                return Some(PartialResult::File(SingleMatch {
-                                    query: q.to_str(),
-                                    node: ch,
-                                }));
-                            }
-                        }
-                    }
+                    Node::File(_) => queries.iter().find(|q| q.matches(ch)).map(|q| {
+                        PartialResult::File(SingleMatch {
+                            query: q.to_str(),
+                            node: ch,
+                        })
+                    }),
                     Node::Dir(dir) => {
                         let dir_partials = dir.search(queries);
                         // so here there should be the part where I check if dir matches any of the queries as well
@@ -317,19 +313,15 @@ impl<'b> Dir {
                         // because I can't call q.matches(ch) because I can't borrow it again
                         // and I can't assign ch to node in SingleMatch for the same reason
                         // everything I tried results in the same issue every single time and at this point I'm not sure what to do.
-                        /* 
-                        for q in queries.iter() {
-                            if q.matches(ch) {
-                                dir_partials.queries.push(q.to_str());
-                                dir_partials.nodes.push(ch);
-                                break;
-                            }
-                        }
+                        /*
+                        if let Some(q) = queries.iter().find(|q| q.matches(ch)) {
+                            dir_partials.queries.push(q.to_str());
+                            dir_partials.nodes.push(ch);
+                        };
                         */
-                        return Some(PartialResult::Dir(dir_partials));
+                        Some(PartialResult::Dir(dir_partials))
                     }
                 }
-                None
             })
             .collect::<Vec<PartialResult>>();
         for partial in partials {

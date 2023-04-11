@@ -71,14 +71,13 @@ impl<'a> QueryType<'a> {
     }
     fn matches_file(&self, file: &File) -> bool {
         match self {
-            Self::Name(_, name) => {
-                file.name()
-                    .components()
-                    .any(|c| match c.as_os_str().to_str() {
-                        Some(s) => s.contains(name),
-                        None => false,
-                    })
-            }
+            Self::Name(_, name) => file
+                .name()
+                .components()
+                .any(|c| match c.as_os_str().to_str() {
+                    Some(s) => s.contains(name),
+                    None => false,
+                }),
             Self::Content(_, content) => {
                 if *file.filetype() == FileType::Text {
                     let file_contents = match std::str::from_utf8(file.content()) {

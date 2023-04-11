@@ -102,6 +102,11 @@ impl PartialEq<PathBuf> for File {
 
 impl Display for File {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "File {{ Name: {}, Type: {} }}", self.name.display(), self.type_)
+        write!(
+            f,
+            "File {{ Name: {}, Type: {} }}",
+            self.name.display(),
+            self.type_
+        )
     }
 }

@@ -1,5 +1,5 @@
-use crate::file::File;
 use crate::dir::Dir;
+use crate::file::File;
 use std::{
     fmt::{Debug, Display},
     path::{Path, PathBuf},
