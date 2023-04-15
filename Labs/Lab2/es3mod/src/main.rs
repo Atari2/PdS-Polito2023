@@ -4,7 +4,7 @@ use dirinfo::{FileOrDirError, FileSystem, FsResult};
 fn main() -> FsResult<()> {
     let cwd = std::env::current_dir()?;
     let mut fs = FileSystem::from_dir(cwd.to_str().ok_or(FileOrDirError::InvalidUtf8)?)?;
-    let queries = vec!["name:.toml", "content:main"];
+    let queries = vec!["name:src", "name:.toml", "content:main"];
     let res = fs.search(&queries);
     println!("{}", res);
     Ok(())

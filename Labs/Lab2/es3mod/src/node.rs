@@ -1,4 +1,5 @@
-use crate::dir::Dir;
+use crate::MatchResult;
+use crate::{dir::Dir, QueryType};
 use crate::file::File;
 use std::{
     fmt::{Debug, Display},
@@ -32,5 +33,25 @@ impl Display for Node {
             Self::File(file) => std::fmt::Display::fmt(&file, f),
             Self::Dir(dir) => std::fmt::Display::fmt(&dir, f),
         }
+    }
+}
+impl<'b> Node {
+    pub fn search<'a>(&'b mut self, queries: &[QueryType<'a>], mut result: MatchResult<'a>) -> MatchResult<'a>
+    where
+        'b: 'a,
+    {
+        let self_ptr = self as *const Self as *mut Self;
+        let node = unsafe { &mut *self_ptr };
+        if let Some(q) = queries.iter().find(|q| q.matches(self)) {
+            result.queries.push(q.to_str());
+            result.nodes.push(node);
+        }
+        match self {
+            Self::File(_) => (),
+            Self::Dir(dir) => {
+                result = dir.search(queries, result);
+            }
+        }
+        result
     }
 }

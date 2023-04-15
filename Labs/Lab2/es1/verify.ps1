@@ -4,7 +4,7 @@ cl /O2 /nologo read_out.c | Out-Null
 ./read_out.exe > out.txt
 cargo run --quiet -- --file data.bin > out2.txt
 $ret = Compare-Object -ReferenceObject (Get-Content -Path out.txt) -DifferenceObject (Get-Content -Path out2.txt)
-if ($ret -eq $null) {
+if ($null -eq $ret) {
     Write-Host "PASS"
 } else {
     Write-Host "FAIL"

@@ -43,7 +43,10 @@ impl Display for MatchResult<'_> {
         result.pop();
         result.push_str("\nFound nodes: ");
         for node in self.nodes.iter() {
-            result.push_str(&format!("\n\t{}", node));
+            match node {
+                Node::File(file) => result.push_str(&format!("\n\t{}", file)),
+                Node::Dir(dir) => result.push_str(&format!("\n\tDir: {{ Name: {} }}", dir.name().display())),
+            }
         }
         f.write_str(&result)
     }
@@ -287,7 +290,7 @@ impl<'b> FileSystem {
             })
             .collect();
         match &mut self.root {
-            Some(root) => root.search(&queries),
+            Some(root) => root.search(&queries, MatchResult::default()),
             None => MatchResult::default(),
         }
     }

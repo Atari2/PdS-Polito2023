@@ -279,62 +279,12 @@ impl<'b> Dir {
         }
         None
     }
-    pub fn search<'a>(&'b mut self, queries: &[QueryType<'a>]) -> MatchResult<'a>
+    pub fn search<'a>(&'b mut self, queries: &[QueryType<'a>], mut result: MatchResult<'a>) -> MatchResult<'a>
     where
         'b: 'a,
     {
-        struct SingleMatch<'a> {
-            query: &'a str,
-            node: &'a mut Node,
-        }
-        enum PartialResult<'a> {
-            File(SingleMatch<'a>),
-            Dir(MatchResult<'a>),
-        }
-        let mut result = MatchResult {
-            queries: vec![],
-            nodes: vec![],
-        };
-        let partials = self
-            .children
-            .iter_mut()
-            .filter_map(|ch| {
-                match ch {
-                    Node::File(_) => queries.iter().find(|q| q.matches(ch)).map(|q| {
-                        PartialResult::File(SingleMatch {
-                            query: q.to_str(),
-                            node: ch,
-                        })
-                    }),
-                    Node::Dir(dir) => {
-                        let dir_partials = dir.search(queries);
-                        // so here there should be the part where I check if dir matches any of the queries as well
-                        // however I can't seem to find a way to do a search on the dir and at its children the same time
-                        // because I can't call q.matches(ch) because I can't borrow it again
-                        // and I can't assign ch to node in SingleMatch for the same reason
-                        // everything I tried results in the same issue every single time and at this point I'm not sure what to do.
-                        /*
-                        if let Some(q) = queries.iter().find(|q| q.matches(ch)) {
-                            dir_partials.queries.push(q.to_str());
-                            dir_partials.nodes.push(ch);
-                        };
-                        */
-                        Some(PartialResult::Dir(dir_partials))
-                    }
-                }
-            })
-            .collect::<Vec<PartialResult>>();
-        for partial in partials {
-            match partial {
-                PartialResult::File(SingleMatch { query, node }) => {
-                    result.queries.push(query);
-                    result.nodes.push(node);
-                }
-                PartialResult::Dir(MatchResult { queries, nodes }) => {
-                    result.queries.extend(queries);
-                    result.nodes.extend(nodes);
-                }
-            }
+        for child in self.children.iter_mut() {
+            result = child.search(queries, result)
         }
         result.queries.sort_unstable();
         result.queries.dedup();
