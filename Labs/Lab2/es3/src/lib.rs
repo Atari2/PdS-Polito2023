@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::fmt::Display;
 use std::fs::OpenOptions;
 use std::io::{BufReader, Read};
@@ -81,6 +80,12 @@ impl File {
             .file_name()
             .ok_or(FileOrDirError::InvalidUtf8)
             .and_then(|os_str| os_str.to_str().ok_or(FileOrDirError::InvalidUtf8))
+    }
+    pub fn content(&self) -> &[u8] {
+        &self.content
+    }
+    pub fn creation_time(&self) -> u64 {
+        self.creation_time
     }
     pub fn new(name: String, metadata: std::fs::Metadata) -> Result<File, FileOrDirError> {
         let mut content = vec![];
@@ -182,7 +187,12 @@ impl<'b> Dir {
         *depth -= 1;
         Ok(())
     }
-
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+    pub fn creation_time(&self) -> u64 {
+        self.creation_time
+    }
     pub fn empty_from_parts(path: &Path, creation_time: u64) -> Result<Dir, FileOrDirError> {
         let path = path.to_str().ok_or(FileOrDirError::InvalidUtf8)?;
         Ok(Dir {
@@ -375,94 +385,15 @@ impl<'b> Dir {
         }
         None
     }
-    fn search<'a>(&'b mut self, queries: &[QueryType<'a>]) -> MatchResult<'a>
+    fn search<'a>(&'b mut self, queries: &[QueryType<'a>], mut result: MatchResult<'a>) -> MatchResult<'a>
     where
         'b: 'a,
     {
-        let mut result = MatchResult {
-            queries: vec![],
-            nodes: vec![],
-        };
-        let partials = self
-            .children
-            .iter_mut()
-            .filter_map(|ch| {
-                match ch {
-                    Node::File(file) => {
-                        for q in queries.iter() {
-                            match q {
-                                QueryType::Name(_, name) => {
-                                    if file.name.contains(name) {
-                                        return Some(MatchResult {
-                                            queries: vec![q.to_str()],
-                                            nodes: vec![ch],
-                                        });
-                                    }
-                                }
-                                QueryType::Content(_, content) => {
-                                    if *file.filetype() == FileType::Text {
-                                        let file_contents = match std::str::from_utf8(&file.content)
-                                        {
-                                            Ok(content) => content,
-                                            Err(_) => continue,
-                                        };
-                                        if file_contents.contains(content) {
-                                            return Some(MatchResult {
-                                                queries: vec![q.to_str()],
-                                                nodes: vec![ch],
-                                            });
-                                        }
-                                    }
-                                }
-                                QueryType::Larger(_, size) => {
-                                    if file.content.len() > *size {
-                                        return Some(MatchResult {
-                                            queries: vec![q.to_str()],
-                                            nodes: vec![ch],
-                                        });
-                                    }
-                                }
-                                QueryType::Smaller(_, size) => {
-                                    if file.content.len() < *size {
-                                        return Some(MatchResult {
-                                            queries: vec![q.to_str()],
-                                            nodes: vec![ch],
-                                        });
-                                    }
-                                }
-                                QueryType::Newer(_, timestamp) => {
-                                    if file.creation_time > *timestamp {
-                                        return Some(MatchResult {
-                                            queries: vec![q.to_str()],
-                                            nodes: vec![ch],
-                                        });
-                                    }
-                                }
-                                QueryType::Older(_, timestamp) => {
-                                    if file.creation_time < *timestamp {
-                                        return Some(MatchResult {
-                                            queries: vec![q.to_str()],
-                                            nodes: vec![ch],
-                                        });
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    Node::Dir(dir) => {
-                        let partial = dir.search(queries);
-                        return Some(partial);
-                    }
-                }
-                None
-            })
-            .collect::<Vec<MatchResult>>();
-        for partial in partials {
-            result.queries.extend(partial.queries);
-            result.nodes.extend(partial.nodes);
+        for child in self.children.iter_mut() {
+            result = child.search(queries, result)
         }
-        let set = result.queries.iter().collect::<HashSet<_>>();
-        result.queries = set.into_iter().cloned().collect();
+        result.queries.sort_unstable();
+        result.queries.dedup();
         result
     }
 }
@@ -484,6 +415,29 @@ impl PartialEq<PathBuf> for Dir {
 pub enum Node {
     File(File),
     Dir(Dir),
+}
+
+impl<'b> Node {
+    fn search<'a>(&'b mut self, queries: &[QueryType<'a>], mut result: MatchResult<'a>) -> MatchResult<'a>
+    where
+        'b: 'a,
+    {
+        match self {
+            Self::File(_) => {
+                if let Some(q) = queries.iter().find(|q| q.matches(self)) {
+                    result.queries.push(q.to_str());
+                    result.nodes.push(self);
+                }
+            },
+            Self::Dir(dir) => {
+                result = dir.search(queries, result);
+                // TODO: find a way to match+add the directory itself
+                // there is a trick I found but I'm 99.99999% sure that it is UB
+                // it's in the es3mod directory in node.rs line 43/44
+            }
+        }
+        result
+    }
 }
 
 impl PartialEq<Path> for Node {
@@ -513,7 +467,7 @@ impl std::fmt::Display for FileSystem {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct MatchResult<'a> {
     pub queries: Vec<&'a str>,
     pub nodes: Vec<&'a mut Node>,
@@ -555,6 +509,47 @@ impl<'a> QueryType<'a> {
             Self::Smaller(og, _) => og,
             Self::Newer(og, _) => og,
             Self::Older(og, _) => og,
+        }
+    }
+    fn matches_file(&self, file: &File) -> bool {
+        match self {
+            Self::Name(_, name) => file
+                .name()
+                .contains(name),
+            Self::Content(_, content) => {
+                if *file.filetype() == FileType::Text {
+                    let file_contents = match std::str::from_utf8(file.content()) {
+                        Ok(content) => content,
+                        Err(_) => return false,
+                    };
+                    file_contents.contains(content)
+                } else {
+                    false
+                }
+            }
+            Self::Larger(_, size) => file.content().len() > *size,
+            Self::Smaller(_, size) => file.content().len() < *size,
+            Self::Newer(_, time) => file.creation_time() > *time,
+            Self::Older(_, time) => file.creation_time() < *time,
+        }
+    }
+    fn matches_dir(&self, dir: &Dir) -> bool {
+        match self {
+            QueryType::Name(_, name) => {
+                dir.name()
+                    .contains(name)
+            }
+            QueryType::Content(_, _) => false,
+            QueryType::Larger(_, _) => false,
+            QueryType::Smaller(_, _) => false,
+            QueryType::Newer(_, time) => dir.creation_time() > *time,
+            QueryType::Older(_, time) => dir.creation_time() < *time,
+        }
+    }
+    pub fn matches(&self, node: &Node) -> bool {
+        match node {
+            Node::File(file) => self.matches_file(file),
+            Node::Dir(dir) => self.matches_dir(dir),
         }
     }
 }
@@ -659,55 +654,33 @@ impl<'b> FileSystem {
             .iter()
             .map(|s| {
                 let mut query = s.split(':');
-                let query_type = match query.next() {
-                    Some(qt) => qt,
-                    None => {
-                        return Err(InvalidQuery::NoQuery);
-                    }
-                };
-                let query_value = match query.next() {
-                    Some(qv) => qv,
-                    None => {
-                        return Err(InvalidQuery::NoQuery);
-                    }
-                };
+                let query_type = query.next().ok_or(InvalidQuery::NoQuery)?;
+                let query_value = query.next().ok_or(InvalidQuery::NoQuery)?;
                 let mappedquery = match query_type {
                     "name" => QueryType::Name(s, query_value),
                     "content" => QueryType::Content(s, query_value),
                     "larger" => {
-                        let size = match query_value.parse::<usize>() {
-                            Ok(s) => s,
-                            Err(_) => {
-                                return Err(InvalidQuery::InvalidQuery);
-                            }
-                        };
+                        let size = query_value
+                            .parse::<usize>()
+                            .map_err(|_| InvalidQuery::InvalidQuery)?;
                         QueryType::Larger(s, size)
                     }
                     "smaller" => {
-                        let size = match query_value.parse::<usize>() {
-                            Ok(s) => s,
-                            Err(_) => {
-                                return Err(InvalidQuery::InvalidQuery);
-                            }
-                        };
+                        let size = query_value
+                            .parse::<usize>()
+                            .map_err(|_| InvalidQuery::InvalidQuery)?;
                         QueryType::Smaller(s, size)
                     }
                     "newer" => {
-                        let time = match query_value.parse::<u64>() {
-                            Ok(t) => t,
-                            Err(_) => {
-                                return Err(InvalidQuery::InvalidQuery);
-                            }
-                        };
+                        let time = query_value
+                            .parse::<u64>()
+                            .map_err(|_| InvalidQuery::InvalidQuery)?;
                         QueryType::Newer(s, time)
                     }
                     "older" => {
-                        let time = match query_value.parse::<u64>() {
-                            Ok(t) => t,
-                            Err(_) => {
-                                return Err(InvalidQuery::InvalidQuery);
-                            }
-                        };
+                        let time = query_value
+                            .parse::<u64>()
+                            .map_err(|_| InvalidQuery::InvalidQuery)?;
                         QueryType::Older(s, time)
                     }
                     &_ => {
@@ -721,6 +694,6 @@ impl<'b> FileSystem {
                 Err(_) => None,
             })
             .collect();
-        self.root.search(&queries)
+        self.root.search(&queries, MatchResult::default())
     }
 }
