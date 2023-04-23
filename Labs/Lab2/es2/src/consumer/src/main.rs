@@ -1,9 +1,10 @@
 use clap::Parser;
-use sensors::{sensor_lock_file, sensor_unlock_file, SensorData, SensorFileMetadata, Args, BinPack};
+use sensors::{sensor_lock_file, sensor_unlock_file, SensorData, SensorFileMetadata, Args};
 use std::{
     fs::OpenOptions,
     io::{Seek, Write},
 };
+use binary_io::BinPack;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
@@ -31,6 +32,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // read data from file
         let mut reader = std::io::BufReader::new(&file);
         let mut writer = std::io::BufWriter::new(&file);
+        // always read metadata from start of file.
+        reader.rewind()?;
         let mut metadata = match SensorFileMetadata::from_bytes(&mut reader) {
             Some(m) => m,
             None => Err(std::io::Error::new(
@@ -67,7 +70,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         println!("After reading: {:?}", metadata);
         metadata.to_bytes(&mut writer)?;
-        reader.rewind()?;
         writer.flush()?;
         sensor_unlock_file(&file)?;
         std::thread::sleep(std::time::Duration::from_millis(10_000));
