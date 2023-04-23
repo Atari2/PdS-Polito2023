@@ -70,6 +70,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         println!("After reading: {:?}", metadata);
         metadata.to_bytes(&mut writer)?;
+        reader.rewind()?;
         writer.flush()?;
         sensor_unlock_file(&file)?;
         std::thread::sleep(std::time::Duration::from_millis(10_000));
