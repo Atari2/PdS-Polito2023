@@ -14,6 +14,28 @@ pub struct SensorData {
     timestamp: u32,
 }
 
+impl SensorData {
+    pub fn min(&self) -> f32 {
+        match self.values.iter().copied().reduce(f32::min) {
+            Some(x) => x,
+            None => 0.0f32
+        }
+    }
+    pub fn max(&self) -> f32 {
+        match self.values.iter().copied().reduce(f32::max) {
+            Some(x) => x,
+            None => f32::MAX
+        }
+    }
+    pub fn avg(&self) -> f32 {
+        let total = match self.values.iter().copied().reduce(|acc, e| acc + e) {
+            Some(x) => x,
+            None => return 0.0f32
+        };
+        total / self.values.len() as f32
+    }
+}
+
 #[repr(C)]
 #[derive(Debug, Copy, Clone, BinaryIO)]
 pub struct SensorFileMetadata {

@@ -68,6 +68,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 break;
             }
         }
+        for (i, sensor) in data.iter().enumerate() {
+            println!("Sensor {}: min => {:.06}, max => {:.06}, avg => {:.06}", i, sensor.min(), sensor.max(), sensor.avg());
+        }
         println!("After reading: {:?}", metadata);
         metadata.to_bytes(&mut writer)?;
         reader.rewind()?;
