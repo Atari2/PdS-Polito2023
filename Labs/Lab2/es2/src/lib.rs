@@ -1,9 +1,27 @@
 use std::{io::{BufRead, Seek, Write}, time::UNIX_EPOCH};
 
-use fcntl::{lock_file, unlock_file, FcntlLockType};
+use fcntl::{lock_file, unlock_file, FcntlLockType, FcntlError};
 use rand::Rng;
 
 use clap::Parser;
+
+#[derive(Debug)]
+pub enum SensorDataError {
+    FcntlError(FcntlError),
+    IoError(std::io::Error),
+    UnlockError
+}
+
+impl From<FcntlError> for SensorDataError {
+    fn from(e: FcntlError) -> Self {
+        SensorDataError::FcntlError(e)
+    }
+}
+impl From<std::io::Error> for SensorDataError {
+    fn from(e: std::io::Error) -> Self {
+        SensorDataError::IoError(e)
+    }
+}
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -123,24 +141,21 @@ impl BinPack for SensorData {
     }
 }
 
-pub fn sensor_lock_file(file: &std::fs::File) -> Result<(), Box<dyn std::error::Error>> {
+pub fn sensor_lock_file(file: &std::fs::File) -> Result<(), FcntlError> {
     loop {
         match lock_file(file, None, Some(FcntlLockType::Write)) {
             Ok(true) => return Ok(()),
             Ok(false) => continue,
-            Err(e) => return Err(Box::new(e)),
+            Err(e) => return Err(e),
         }
     }
 }
 
-pub fn sensor_unlock_file(file: &std::fs::File) -> Result<(), Box<dyn std::error::Error>> {
+pub fn sensor_unlock_file(file: &std::fs::File) -> Result<(), SensorDataError> {
     match unlock_file(file, None) {
         Ok(true) => Ok(()),
-        Ok(false) => Err(Box::new(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Could not unlock file",
-        ))),
-        Err(e) => Err(Box::new(e)),
+        Ok(false) => Err(SensorDataError::UnlockError),
+        Err(e) => Err(SensorDataError::FcntlError(e)),
     }
 }
 

@@ -1,13 +1,13 @@
 use clap::Parser;
 use sensors::{
-    sensor_lock_file, sensor_unlock_file, simulate_sensor, SensorData, SensorFileMetadata, Args, BinPack,
+    sensor_lock_file, sensor_unlock_file, simulate_sensor, SensorData, SensorFileMetadata, Args, BinPack, SensorDataError,
 };
 use std::{
     fs::OpenOptions,
     io::{Seek, Write},
 };
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), SensorDataError> {
     let args = Args::parse();
     let file = OpenOptions::new()
         .write(true)
