@@ -1,9 +1,10 @@
-use std::{io::{BufRead, Seek, Write}, time::UNIX_EPOCH};
+use std::time::UNIX_EPOCH;
 
 use fcntl::{lock_file, unlock_file, FcntlLockType, FcntlError};
 use rand::Rng;
 
 use clap::Parser;
+use binary_io::{BinPack, BinaryIO, Write};
 
 #[derive(Debug)]
 pub enum SensorDataError {
@@ -24,29 +25,36 @@ impl From<std::io::Error> for SensorDataError {
 }
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, BinaryIO)]
 pub struct SensorData {
     seq: u32,
     values: [f32; 10],
     timestamp: u32,
 }
 
+impl SensorData {
+    pub fn min(&self) -> f32 {
+        self.values.iter().copied().reduce(f32::min).unwrap_or(0.0f32)
+    }
+    pub fn max(&self) -> f32 {
+        self.values.iter().copied().reduce(f32::max).unwrap_or(f32::MAX)
+    }
+    pub fn avg(&self) -> f32 {
+        let total = match self.values.iter().copied().reduce(|acc, e| acc + e) {
+            Some(x) => x,
+            None => return 0.0f32
+        };
+        total / self.values.len() as f32
+    }
+}
+
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, BinaryIO)]
 pub struct SensorFileMetadata {
     pub read_head: u64,
     pub write_head: u64,
     buffer_size: u64,
     current_size: u64,
-}
-
-pub trait BinPack {
-    fn to_bytes<T: Write>(&self, writer: &mut std::io::BufWriter<T>) -> Result<(), std::io::Error>
-    where
-        Self: Sized;
-    fn from_bytes<T: BufRead + Seek>(reader: &mut T) -> Option<Self>
-    where
-        Self: Sized;
 }
 
 impl Default for SensorFileMetadata {
@@ -57,28 +65,6 @@ impl Default for SensorFileMetadata {
             buffer_size: 20,
             current_size: 0,
         }
-    }
-}
-
-impl BinPack for SensorFileMetadata {
-    fn from_bytes<T: BufRead + Seek>(reader: &mut T) -> Option<Self> {
-        let mut buf = [0u8; std::mem::size_of::<Self>()];
-        match reader.rewind() {
-            Ok(_) => (),
-            Err(_) => return None,
-        }
-        match reader.read_exact(&mut buf) {
-            Ok(_) => unsafe { Some(std::mem::transmute(buf)) },
-            Err(_) => None,
-        }
-    }
-    fn to_bytes<T: Write>(
-        &self,
-        writer: &mut std::io::BufWriter<T>,
-    ) -> Result<(), std::io::Error> {
-        let buf: [u8; std::mem::size_of::<Self>()] = unsafe { std::mem::transmute(*self) };
-        writer.write_all(&buf)?;
-        Ok(())
     }
 }
 
@@ -118,26 +104,6 @@ impl SensorFileMetadata {
     }
     pub fn is_empty(&self) -> bool {
         self.current_size == 0
-    }
-}
-
-impl BinPack for SensorData {
-    fn to_bytes<T: Write>(
-        &self,
-        writer: &mut std::io::BufWriter<T>,
-    ) -> Result<(), std::io::Error> {
-        let buf: [u8; std::mem::size_of::<Self>()] = unsafe { std::mem::transmute(*self) };
-        writer.write_all(&buf)?;
-        Ok(())
-    }
-    fn from_bytes<T: BufRead + Seek>(
-        reader: &mut T,
-    ) -> Option<Self> {
-        let mut buf = [0u8; std::mem::size_of::<Self>()];
-        match reader.read_exact(&mut buf) {
-            Ok(_) => unsafe { Some(std::mem::transmute(buf)) },
-            Err(_) => None,
-        }
     }
 }
 
