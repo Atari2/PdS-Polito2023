@@ -1,10 +1,28 @@
 use std::time::UNIX_EPOCH;
 
-use fcntl::{lock_file, unlock_file, FcntlLockType};
+use fcntl::{lock_file, unlock_file, FcntlLockType, FcntlError};
 use rand::Rng;
 
 use clap::Parser;
 use binary_io::{BinPack, BinaryIO, Write};
+
+#[derive(Debug)]
+pub enum SensorDataError {
+    FcntlError(FcntlError),
+    IoError(std::io::Error),
+    UnlockError
+}
+
+impl From<FcntlError> for SensorDataError {
+    fn from(e: FcntlError) -> Self {
+        SensorDataError::FcntlError(e)
+    }
+}
+impl From<std::io::Error> for SensorDataError {
+    fn from(e: std::io::Error) -> Self {
+        SensorDataError::IoError(e)
+    }
+}
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, BinaryIO)]
@@ -16,16 +34,10 @@ pub struct SensorData {
 
 impl SensorData {
     pub fn min(&self) -> f32 {
-        match self.values.iter().copied().reduce(f32::min) {
-            Some(x) => x,
-            None => 0.0f32
-        }
+        self.values.iter().copied().reduce(f32::min).unwrap_or(0.0f32)
     }
     pub fn max(&self) -> f32 {
-        match self.values.iter().copied().reduce(f32::max) {
-            Some(x) => x,
-            None => f32::MAX
-        }
+        self.values.iter().copied().reduce(f32::max).unwrap_or(f32::MAX)
     }
     pub fn avg(&self) -> f32 {
         let total = match self.values.iter().copied().reduce(|acc, e| acc + e) {
@@ -95,24 +107,21 @@ impl SensorFileMetadata {
     }
 }
 
-pub fn sensor_lock_file(file: &std::fs::File) -> Result<(), Box<dyn std::error::Error>> {
+pub fn sensor_lock_file(file: &std::fs::File) -> Result<(), FcntlError> {
     loop {
         match lock_file(file, None, Some(FcntlLockType::Write)) {
             Ok(true) => return Ok(()),
             Ok(false) => continue,
-            Err(e) => return Err(Box::new(e)),
+            Err(e) => return Err(e),
         }
     }
 }
 
-pub fn sensor_unlock_file(file: &std::fs::File) -> Result<(), Box<dyn std::error::Error>> {
+pub fn sensor_unlock_file(file: &std::fs::File) -> Result<(), SensorDataError> {
     match unlock_file(file, None) {
         Ok(true) => Ok(()),
-        Ok(false) => Err(Box::new(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Could not unlock file",
-        ))),
-        Err(e) => Err(Box::new(e)),
+        Ok(false) => Err(SensorDataError::UnlockError),
+        Err(e) => Err(SensorDataError::FcntlError(e)),
     }
 }
 

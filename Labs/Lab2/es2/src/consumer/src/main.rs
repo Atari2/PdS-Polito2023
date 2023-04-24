@@ -1,12 +1,12 @@
 use clap::Parser;
-use sensors::{sensor_lock_file, sensor_unlock_file, SensorData, SensorFileMetadata, Args};
+use sensors::{sensor_lock_file, sensor_unlock_file, SensorData, SensorFileMetadata, Args, SensorDataError};
 use std::{
     fs::OpenOptions,
     io::{Seek, Write},
 };
 use binary_io::BinPack;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), SensorDataError> {
     let args = Args::parse();
     let file;
     loop {
