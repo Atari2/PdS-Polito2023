@@ -16,5 +16,5 @@ path = "src/consumer/src/main.rs"
 [dependencies]
 binary_io = { path = "binary_io" }
 clap = { version = "4.2.1", features = ["derive"] }
-fcntl = "0.1.0"
+fs2 = "0.4.3"
 rand = "0.8.5"

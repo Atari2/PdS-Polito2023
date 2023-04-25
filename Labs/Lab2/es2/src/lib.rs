@@ -1,6 +1,6 @@
 use std::time::UNIX_EPOCH;
 
-use fcntl::{lock_file, unlock_file, FcntlLockType, FcntlError};
+use fs2::FileExt;
 use rand::Rng;
 
 use clap::Parser;
@@ -8,16 +8,13 @@ use binary_io::{BinPack, BinaryIO, Write};
 
 #[derive(Debug)]
 pub enum SensorDataError {
-    FcntlError(FcntlError),
+    LockError(Box<dyn std::error::Error>),
     IoError(std::io::Error),
-    UnlockError
+    UnlockError(Box<dyn std::error::Error>),
+    MetadataReadError,
+    DataReadError
 }
 
-impl From<FcntlError> for SensorDataError {
-    fn from(e: FcntlError) -> Self {
-        SensorDataError::FcntlError(e)
-    }
-}
 impl From<std::io::Error> for SensorDataError {
     fn from(e: std::io::Error) -> Self {
         SensorDataError::IoError(e)
@@ -107,22 +104,12 @@ impl SensorFileMetadata {
     }
 }
 
-pub fn sensor_lock_file(file: &std::fs::File) -> Result<(), FcntlError> {
-    loop {
-        match lock_file(file, None, Some(FcntlLockType::Write)) {
-            Ok(true) => return Ok(()),
-            Ok(false) => continue,
-            Err(e) => return Err(e),
-        }
-    }
+pub fn sensor_lock_file(file: &std::fs::File) -> Result<(), SensorDataError> {
+    file.lock_exclusive().map_err(|e| SensorDataError::LockError(e.into()))
 }
 
 pub fn sensor_unlock_file(file: &std::fs::File) -> Result<(), SensorDataError> {
-    match unlock_file(file, None) {
-        Ok(true) => Ok(()),
-        Ok(false) => Err(SensorDataError::UnlockError),
-        Err(e) => Err(SensorDataError::FcntlError(e)),
-    }
+    file.unlock().map_err(|e| SensorDataError::UnlockError(e.into()))
 }
 
 pub fn simulate_sensor(sensor_num: u32) -> SensorData {

@@ -34,25 +34,13 @@ fn main() -> Result<(), SensorDataError> {
         let mut writer = std::io::BufWriter::new(&file);
         // always read metadata from start of file.
         reader.rewind()?;
-        let mut metadata = match SensorFileMetadata::from_bytes(&mut reader) {
-            Some(m) => m,
-            None => Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Could not read metadata",
-            ))?,
-        };
+        let mut metadata = SensorFileMetadata::from_bytes(&mut reader).ok_or(SensorDataError::MetadataReadError)?;
         println!("Read metadata {:?}", metadata);
         let mut data = vec![];
         for _ in 0..args.sensors {
             let offset = metadata.read_head * SENSOR_DATA_SIZE + METADATA_SIZE;
             reader.seek(std::io::SeekFrom::Start(offset))?;
-            let d = match SensorData::from_bytes(&mut reader) {
-                Some(d) => d,
-                None => Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    "Could not read data",
-                ))?,
-            };
+            let d = SensorData::from_bytes(&mut reader).ok_or(SensorDataError::DataReadError)?;
             if args.verbose {
                 println!("Read data {:?}", d);
             }
