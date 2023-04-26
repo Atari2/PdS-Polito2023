@@ -15,3 +15,6 @@ tests/
 Labs/Lab2/es2/*.bin
 !Labs/Lab2/es3/tests
 !Labs/Lab2/es3mod/tests
+!Labs/Lab3/es1/circular-buffer/tests
+!Labs/Lab3/es2/tests
+!Labs/Lab3/es3/tests
