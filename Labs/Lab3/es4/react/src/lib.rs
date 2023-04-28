@@ -174,21 +174,27 @@ impl<'a, T: Copy + PartialEq + Debug> Reactor<'a, T> {
         compute_func: F,
     ) -> Result<ComputeCellId, CellId> {
         let compute_id = ComputeCellId::new();
+
+        if let Some(&s) = dependencies.iter().find(|&&id| self.value(id).is_none()) {
+            return Err(s);
+        }
+
+        // we panic if we can't find the cell because we verified that it exists on the line above
         for dep in dependencies.iter() {
             match dep {
                 CellId::Input(id) => match self.inputs.get_mut(id) {
                     Some(cell) => cell.dependents.push(compute_id),
-                    None => return Err(*dep),
+                    None => panic!("Input cell not found"),
                 },
                 CellId::Compute(id) => match self.cells.get_mut(id) {
                     Some(cell) => cell.cell.dependents.push(compute_id),
-                    None => return Err(*dep),
+                    None => panic!("Compute cell not found"),
                 },
             }
         }
         let inputs = dependencies
             .iter()
-            .map(|&id| self.value(id).unwrap())
+            .map_while(|&id| self.value(id))
             .collect::<Vec<T>>();
         let initial = compute_func(&inputs);
         self.cells.insert(
@@ -214,15 +220,15 @@ impl<'a, T: Copy + PartialEq + Debug> Reactor<'a, T> {
 
     fn update_dependent(&mut self, id: ComputeCellId) {
         let (new_value, deps) = {
-            let (dependencies, f, dependents) = match self.cells.get(&id) {
-                Some(c) => (&c.deps, &c.fun, c.cell.dependents.clone()),
+            let c = match self.cells.get(&id) {
+                Some(c) => c,
                 None => return,
             };
-            let inputs = dependencies
+            let inputs = c.deps
                 .iter()
                 .map_while(|&id| self.value(id))
                 .collect::<Vec<T>>();
-            (f(&inputs), dependents)
+            ((c.fun)(&inputs), c.cell.dependents.clone())
         };
         if let Some(comp) = self.cells.get_mut(&id) {
             if comp.cell.value.get() == new_value {
