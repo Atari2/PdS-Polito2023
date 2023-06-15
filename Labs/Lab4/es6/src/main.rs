@@ -83,11 +83,7 @@ mod cb {
                 self.cond_var.notify_all();
             } else {
                 // otherwise wait until we're released
-                // this while loop handles spourious wakeups
-                // as described in the rust docs https://doc.rust-lang.org/stable/std/sync/struct.Condvar.html#method.wait
-                while barrierqueue.spourious() {
-                    barrierqueue = self.cond_var.wait(barrierqueue).unwrap();
-                }
+                barrierqueue = self.cond_var.wait_while(barrierqueue, |guard| guard.spourious()).unwrap();
             }
             // dequeue the thread
             barrierqueue.dequeue();
