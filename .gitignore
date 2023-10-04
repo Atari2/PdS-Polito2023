@@ -11,9 +11,11 @@ Cargo.lock
 **/target
 **/.idea
 tests/
+.vscode
 
 # random files per lab
 Labs/Lab2/es2/*.bin
+Labs/Lab5/corpus
 !Labs/Lab2/es3/tests
 !Labs/Lab2/es3mod/tests
 !Labs/Lab3/es1/circular-buffer/tests

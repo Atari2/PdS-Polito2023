@@ -6,16 +6,19 @@ mod cb {
     #[derive(PartialEq)]
     enum BarrierState {
         Receiving,
-        Releasing
+        Releasing,
     }
 
     struct BarrierCount {
         original: usize,
         count: usize,
-        state: BarrierState
+        state: BarrierState,
     }
 
     impl BarrierCount {
+        pub fn rank(&self) -> usize {
+            self.original - self.count + 1
+        }
         pub fn queue(&mut self) {
             self.count -= 1;
         }
@@ -27,6 +30,9 @@ mod cb {
         }
         pub fn queue_full(&self) -> bool {
             self.count == 0
+        }
+        pub fn last_thread(&self) -> bool {
+            self.count == 1
         }
         pub fn release(&mut self) {
             self.state = BarrierState::Releasing;
@@ -50,64 +56,65 @@ mod cb {
         pub fn new(nthreads: usize) -> CyclicBarrier {
             CyclicBarrier {
                 cond_var: Condvar::new(),
-                mutex: Mutex::new(BarrierCount{
+                mutex: Mutex::new(BarrierCount {
                     original: nthreads,
                     count: nthreads,
                     state: BarrierState::Receiving,
                 }),
             }
         }
-        pub fn wait(&self) {
+        pub fn wait(&self) -> usize {
             let mut barrierqueue = self.mutex.lock().unwrap();
             if barrierqueue.queue_full() {
                 // TODO: handle this
                 panic!("Error: already waiting on maximum number of threads");
             }
-            while barrierqueue.releasing() {
-                // if we're releasing don't register the thread
-                // just wait until we're done releasing and then allow registering
-                barrierqueue = self.cond_var.wait(barrierqueue).unwrap();
-            }
 
-            // queue the thread on wait
-            barrierqueue.queue();
+            barrierqueue = self.cond_var.wait_while(barrierqueue, |guard| guard.releasing() && guard.spourious()).unwrap();
 
-            // if we're the last thread to queue, release all threads
-            if barrierqueue.queue_full() {
+            let retval = barrierqueue.rank();
+            if barrierqueue.last_thread() {
+                // if we're the last thread to queue, release all threads
                 barrierqueue.release();
                 self.cond_var.notify_all();
-            } else {
-            // otherwise wait until we're released
-                // this while loop handles spourious wakeups
-                // as described in the rust docs https://doc.rust-lang.org/stable/std/sync/struct.Condvar.html#method.wait
-                while barrierqueue.spourious() {
-                    barrierqueue = self.cond_var.wait(barrierqueue).unwrap();
-                }
+            } else {            
+                // queue the thread on wait
+                barrierqueue.queue();
+                barrierqueue = self.cond_var.wait_while(barrierqueue, |guard| guard.spourious()).unwrap();            // dequeue the thread
+                barrierqueue.dequeue();
             }
-            // dequeue the thread
-            barrierqueue.dequeue();
-            
+
             // if we're the last thread to dequeue, reset the barrier
             if barrierqueue.queue_empty() {
                 barrierqueue.reset();
             }
+            retval
         }
     }
 }
 
-fn main() {
-    let abarrier = Arc::new(cb::CyclicBarrier::new(3));
+fn barrier_example() {
+
+    let abarrrier = Arc::new(cb::CyclicBarrier::new(3));
+
     let mut vt = Vec::new();
+
     for i in 0..3 {
-        let cbarrier = abarrier.clone();
-        vt.push(std::thread::Builder::new().name(format!("thread_{}", i)).spawn(move || {
+        let cbarrier = abarrrier.clone();
+
+        vt.push(std::thread::spawn(move || {
             for j in 0..10 {
-                cbarrier.wait();
-                println!("after barrier {} {}\n", i, j);
+                let rank = cbarrier.wait();
+                println!("barrier open {} {}, rank {}", i, j, rank);
             }
-        }).unwrap());
+        }));
     }
+
     for t in vt {
         t.join().unwrap();
     }
+}
+
+fn main() {
+    barrier_example();
 }
