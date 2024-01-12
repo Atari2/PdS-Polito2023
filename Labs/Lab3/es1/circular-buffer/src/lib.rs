@@ -46,7 +46,7 @@ impl<T> CircularBuffer<T> {
         if self.num_elements == 0 {
             Err(Error::EmptyBuffer)
         } else {
-            let elem = match std::mem::replace(&mut self.buffer[self.read_index], None) {
+            let elem = match self.buffer[self.read_index].take() {
                 Some(elem) => elem,
                 None => return Err(Error::EmptyBuffer),
             };
